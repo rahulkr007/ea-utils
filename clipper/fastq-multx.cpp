@@ -1,16 +1,13 @@
 /*
 Copyright (c) 2011 Expression Analysis / Erik Aronesty
-
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
 to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
-
 The above copyright notice and this permission notice shall be included in
 all copies or substantial portions of the Software.
-
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -21,9 +18,7 @@ THE SOFTWARE.
 */
 
 /*
-
 See "void usage" below for usage.
-
 */
 
 #include "fastq-lib.h"
@@ -44,6 +39,8 @@ struct bc {
 	FILE *fout[6];
 	bool gzout[6];
 	uint64_t cnt;			// count found
+        uint64_t zerocnt;
+        uint64_t onecnt;
 	bool shifted;			// count found in 1-shifted position
 	char * dual;			// is this a dual-indexed barcode?  if so, this points to the second index.
 	int dual_n;			// length of dual
@@ -975,6 +972,7 @@ int main (int argc, char **argv) {
             if (d==0) { 
                 if (debug) fprintf(stderr, ", found bc: %d bc:%s n:%d, bestd: %d, next_best: %d", i, bc[i].seq.s, bc[i].seq.n, bestd, next_best);
                 best=i; 
+                ++bc[best].zerocnt;
                 break; 
             } else if (d <= mismatch) {
                 // if ok match
@@ -983,6 +981,7 @@ int main (int argc, char **argv) {
                 } else if (d < bestmm) {
                     bestmm=d;		// best match...ok
                     best=i;
+                    ++bc[best].onecnt;
                 }
             }
         }
@@ -1071,10 +1070,10 @@ int main (int argc, char **argv) {
         fprintf(stderr, "Returning error because of i/o error during file close\n");
 
 	int j;
-	printf("Id\tCount\tFile(s)\n");
+	printf("Id\tCount\tzerocnt\tonecnt\tFile(s)\n");
 	uint64_t tot=0;
 	for (i=0;i<=bcnt;++i) {
-		printf("%s\t%lu", bc[i].id.s, bc[i].cnt);
+		printf("%s\t%lu\t%lu\t%lu", bc[i].id.s, bc[i].cnt,bc[i].zerocnt,bc[i].onecnt);
 		tot+=bc[i].cnt;
 		for (j=0;j<f_n;++j) {
 			if (bc[i].out[j])
@@ -1240,4 +1239,3 @@ void getbcfromheader(char *s, int *ns, char **q, char **s2, int *ns2) {
         }
     }
 }
-
