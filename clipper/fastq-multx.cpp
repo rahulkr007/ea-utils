@@ -10,7 +10,7 @@ The above copyright notice and this permission notice shall be included in
 all copies or substantial portions of the Software.
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL TH
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
@@ -25,7 +25,7 @@ See "void usage" below for usage.
 
 #define MAX_BARCODE_NUM 6000
 #define MAX_GROUP_NUM 500
-// factor to divide max by
+// factor to divide max b
 #define THFIXFACTOR 20
 #define endstr(e) (e=='e'?"end":e=='b'?"start":"n/a")
 
@@ -39,11 +39,20 @@ struct bc {
 	FILE *fout[6];
 	bool gzout[6];
 	uint64_t cnt;			// count found
-        uint64_t zerocnt;
-        uint64_t onecnt;
+    uint64_t zerocnt;
+    uint64_t onecnt;
 	bool shifted;			// count found in 1-shifted position
 	char * dual;			// is this a dual-indexed barcode?  if so, this points to the second index.
 	int dual_n;			// length of dual
+    int BD[3][5][251];
+    int QD[3][4][251];
+    int GC[3][10];
+    float thisgcPercentage;
+    long int NumberOfReads[2];
+    long int totalQuality[3];
+    long int NumberOfBases[3];
+    long int TotalGC[3];
+    long int BaseQuality[3][4];
 };
 
 // group of barcodes
@@ -63,7 +72,7 @@ struct bcg {
         int escnt[6];			// matched end of file n, shifted by 1
         int dbcnt[6];                   // dual matched begin of file n
         int decnt[6];                   // dual matched end of file n
-	struct group *gptr;		
+	struct group *gptr;
 };
 
 struct group* getgroup(char *s);
@@ -119,30 +128,30 @@ int main (int argc, char **argv) {
     int phred = 33;
     double threshfactor = 1;
     int bcinheader = 0;
-
+    uint64_t Q;
 	int i;
-	bool omode = false;	
+	bool omode = false;
 	char *bfil = NULL;
 	while (	(c = getopt (argc, argv, "-DzxnHhbeosv:m:B:g:L:l:G:q:d:t:")) != -1) {
 		switch (c) t:{
-		case '\1': 
+		case '\1':
                        	if (omode) {
 				if (f_oarg<5)
 					out[f_oarg++] = optarg;
 				else {
 					usage(stderr); return 1;
 				}
-			} else if (!bfil && !guide && !list) 
-				bfil = optarg; 
+			} else if (!bfil && !guide && !list)
+				bfil = optarg;
 			else if (f_n<5) {
-				in[f_n++] = optarg; 
+				in[f_n++] = optarg;
 			} else {
 				usage(stderr); return 1;
 			}
 			break;
                 case 'o': omode=true; break;
                 case 's': seqnames=true; break;
-                case 'v': 
+                case 'v':
 			if (strlen(optarg)>1) {
 				fprintf(stderr, "Option -v requires a single character argument");
 				exit(1);
@@ -153,7 +162,7 @@ int main (int argc, char **argv) {
 		case 'H': bcinheader = 1; usefile1=1; break;
 		case 'e': end = 'e'; break;
 		case 'G': group = optarg; break;
-		case 'g': 
+		case 'g':
 			guide = optarg;
 			in[f_n++] = optarg;
 			out[f_oarg++] = "n/a";
@@ -168,7 +177,7 @@ int main (int argc, char **argv) {
 		case 'd': distance = atoi(optarg); break;
 		case 'q': quality = atoi(optarg); break;
 		case 'D': ++debug; break;
-		case '?': 
+		case '?':
 		     if (strchr("vmBglG", optopt))
 		       fprintf (stderr, "Option -%c requires an argument.\n", optopt);
 		     else if (isprint(optopt))
@@ -216,7 +225,7 @@ int main (int argc, char **argv) {
 
 	// 3 ways to get barcodes
 	if (list) {
-		// use a list of barcode groups... determine the best set, then use the determined set 
+		// use a list of barcode groups... determine the best set, then use the determined set
 		struct bcg *bcg = (struct bcg *) malloc(sizeof(*bcg) * MAX_GROUP_NUM * MAX_BARCODE_NUM);
 		if (!bcg) {
                         fprintf(stderr, "Out of memory\n");
@@ -287,7 +296,7 @@ int main (int argc, char **argv) {
 			double tots=0, totsq=0;
 		    char *s2 = NULL; int ns2=0;
             char *ignore_s=NULL;
-	
+
 			stat(in[i], &st);
 
 			while ((ns=getline(&s, &na, fin[i])) > 0) {
@@ -315,9 +324,9 @@ int main (int argc, char **argv) {
                 }
 
 // skip if quality is below average
-				if (st.st_size > (sampcnt * 500) && poorqual(i, ns, s, q)) 
+				if (st.st_size > (sampcnt * 500) && poorqual(i, ns, s, q))
 					continue;
-	
+
 				for (b=0;b<bgcnt;++b) {
                     // matches front of read?
 					if (!strncasecmp(s, bcg[b].b.seq.s, bcg[b].b.seq.n)) {
@@ -328,9 +337,9 @@ int main (int argc, char **argv) {
                     }
 
 					if (ns >= bcg[b].b.seq.n && !strcasecmp(s+ns-bcg[b].b.seq.n, bcg[b].b.seq.s)) {
-						++bcg[b].ecnt[i]; 
+						++bcg[b].ecnt[i];
 					} else if (ns > bcg[b].b.seq.n && !strncasecmp(s+ns-bcg[b].b.seq.n-1, bcg[b].b.seq.s, bcg[b].b.seq.n)) {
-						++bcg[b].escnt[i]; 
+						++bcg[b].escnt[i];
 					}
 
 					if (bcg[b].b.dual) {
@@ -347,11 +356,11 @@ int main (int argc, char **argv) {
 							++bcg[b].decnt[i];
                         }
 					}
-				}	
-				
+				}
+
 				++nr;
                 // got enough reads?
-				if (nr >= sampcnt) 
+				if (nr >= sampcnt)
                     break;
 			}
 
@@ -363,7 +372,7 @@ int main (int argc, char **argv) {
 					fmax[i]=hcnt;
 
 				if (fsum[i] > bestcnt)  {
-                    if (debug > 1) 
+                    if (debug > 1)
                         fprintf(stderr,"file %d(%s), bcg: %s, file-sum: %d, bestsum: %d\n", i, in[i], bcg[b].gptr->id, fsum[i], bestcnt);
 
 					bestcnt=fsum[i];
@@ -371,7 +380,7 @@ int main (int argc, char **argv) {
 					bestdual=(bcg[b].b.dual!=NULL);
 				}
 
-                if (debug > 1) 
+                if (debug > 1)
                     fprintf(stderr,"dual %d(%s), bcg: %s, file-sum: %d, bestsum: %d\n", i, in[i], bcg[b].gptr->id, dfsum[i], dbestcnt);
 
 				if (bcg[b].b.dual) {
@@ -381,7 +390,7 @@ int main (int argc, char **argv) {
 					if (dcnt > dfmax[i])
 						dfmax[i]=dcnt;
 					if (dfsum[i] > dbestcnt)  {
-                        if (debug > 1) 
+                        if (debug > 1)
                             fprintf(stderr,"dual %d(%s), bcg: %s, file-sum: %d, bestsum: %d\n", i, in[i], bcg[b].gptr->id, dfsum[i], dbestcnt);
 						dbestcnt=dfsum[i];
 						dbesti=i;
@@ -396,14 +405,14 @@ int main (int argc, char **argv) {
 		i=usefile1?0:besti;
 
 		int gmax=0, gindex=-1, scnt = 0, ecnt=0, dscnt = 0, decnt = 0;
-		int thresh = (int) (pickmaxpct*fmax[i]); 
+		int thresh = (int) (pickmaxpct*fmax[i]);
 
 		if (debug > 0) fprintf(stderr,"besti: %d thresh: %d, dual: %d\n", besti, thresh, bestdual);
 		for (b=0;b<bgcnt;++b) {
 			int hcnt = (int) (max(bcg[b].bcnt[i],bcg[b].ecnt[i]) * log(bcg[b].b.seq.n));
 			if (debug > 1) fprintf(stderr,"cnt: %s %s hc:%d bc:%d ec: %d\n", bcg[b].b.id.s, bcg[b].b.seq.s, hcnt, bcg[b].bcnt[i], bcg[b].ecnt[i]);
 			if (hcnt >= thresh) {
-				// increase group count	
+				// increase group count
 				bcg[b].gptr->tcnt += hcnt;
 				if (bcg[b].gptr->tcnt > gmax) {
 					gindex=bcg[b].gptr->i;
@@ -436,11 +445,11 @@ int main (int argc, char **argv) {
 		if (debug) fprintf(stderr,"scnt: %d, ecnt, %d, end: %c\n", scnt, ecnt, end);
 
 		thresh/=threshfactor;
-		if (bestdual) 
+		if (bestdual)
 		    thresh/=5;
 
 		// since this is a known good set, use a very low threshold, just to catch them all
-        fprintf(stderr, "Using Barcode Group: %s on File: %s (%s), Threshold %2.2f%%\n", 
+        fprintf(stderr, "Using Barcode Group: %s on File: %s (%s), Threshold %2.2f%%\n",
         grs[gindex].id, in[i], endstr(end), 100.0 * (float) ((float)thresh/THFIXFACTOR)/sampcnt);
 
 		if (bestdual) {
@@ -450,9 +459,9 @@ int main (int argc, char **argv) {
 			for (b=0;b<bgcnt;++b) {
 				// trim down a bit, but later should trim down to "both-match"
 				if (bcg[b].gptr->i == gindex) {
-					if (bcg[b].decnt[dbesti] < bcg[b].ecnt[i]) 
+					if (bcg[b].decnt[dbesti] < bcg[b].ecnt[i])
 						bcg[b].ecnt[i] = bcg[b].decnt[dbesti];
-					if (bcg[b].dbcnt[dbesti] < bcg[b].bcnt[i]) 
+					if (bcg[b].dbcnt[dbesti] < bcg[b].bcnt[i])
 						bcg[b].bcnt[i] = bcg[b].dbcnt[dbesti];
 				}
 			}
@@ -521,7 +530,7 @@ int main (int argc, char **argv) {
 		FILE *gin = fin[0];
 
 		int blen = 0;
-	
+
 		int sampcnt = 100000;
 		struct stat st;
 		stat(guide, &st);
@@ -600,7 +609,7 @@ int main (int argc, char **argv) {
 			    s[--ns]='\0'; q[ns]='\0';
             }
 
-			if (st.st_size > (sampcnt * 500) && poorqual(i, ns, s, q)) 
+			if (st.st_size > (sampcnt * 500) && poorqual(i, ns, s, q))
 				continue;
 
             ++nr;
@@ -612,7 +621,7 @@ int main (int argc, char **argv) {
 				p=s+nr-blen;
 			}
 			p[blen]='\0';
-			if (!ent) {		// make a new ent 
+			if (!ent) {		// make a new ent
 				ent = (bnode *) malloc(sizeof(*ent));
 			    ent->seq=(char*)malloc(blen+1);;
             }
@@ -630,11 +639,11 @@ int main (int argc, char **argv) {
 
 			++fent->cnt;
 
-			if (fent->cnt > pickmax) 
+			if (fent->cnt > pickmax)
                 pickmax=fent->cnt;
-			else if (fent->cnt > pickmax2) 
+			else if (fent->cnt > pickmax2)
                 pickmax2=fent->cnt;
-			
+
 			if (nr > sampcnt)
 				break;
 		}
@@ -669,7 +678,7 @@ int main (int argc, char **argv) {
 			bc[bcnt].id.n=strlen(bc[bcnt].id.s);
 			bc[bcnt].seq.n=strlen(bc[bcnt].seq.s);
 			if (debug) fprintf(stderr, "BC: %d bc:%s n:%d\n", bcnt, bc[bcnt].seq.s, bc[bcnt].seq.n);
-			++bcnt; 
+			++bcnt;
 		}
 
         fprintf(stderr, "Using Barcode File: %s\n", bfil);
@@ -718,7 +727,7 @@ int main (int argc, char **argv) {
                 read_fq(fin[1], nr, &fq[1]);
             ++nr;
 
-            if (st.st_size > (sampcnt * 500) && poorqual(0, fq[0].seq.n, fq[0].seq.s, fq[0].qual.s)) 
+            if (st.st_size > (sampcnt * 500) && poorqual(0, fq[0].seq.n, fq[0].seq.s, fq[0].qual.s))
                 continue;
 
             if (dual)
@@ -753,7 +762,7 @@ int main (int argc, char **argv) {
                 }
             }
 
-            if (nr >= sampcnt) 
+            if (nr >= sampcnt)
                 break;
         }
 
@@ -789,12 +798,13 @@ int main (int argc, char **argv) {
         }
     }
 
-	if (bcnt == 0) { 
+	if (bcnt == 0) {
 		fprintf(stderr, "No barcodes defined, quitting.\n");
 		exit(1);
 	}
 
 	// one beyond barcode count is unmatched
+	bc[bcnt].id.s=(char*) malloc(200);
 	bc[bcnt].id.s=(char *)"unmatched";
 
 	// TODO: output barcode read ...but only for unmatched?
@@ -859,6 +869,7 @@ int main (int argc, char **argv) {
 	int ntrim=0;
 	int nbtrim=0;
 	int read_ok;
+	int readLength;
 
     // ACTUAL DEMUX HAPPENS HERE
 	// read in 1 record from EACH file supplied
@@ -894,9 +905,9 @@ int main (int argc, char **argv) {
             for (i=f_n-1;i>=0;--i) {
                 fq[i+(dual?2:1)]=fq[i];
             }
-            meminit(fq[0]); 
+            meminit(fq[0]);
             if (dual) {
-                meminit(fq[1]); 
+                meminit(fq[1]);
                 getbcfromheader(&fq[2], &fq[0], &fq[1].seq.s, &fq[1].seq.n);
             } else {
                 getbcfromheader(&fq[2], &fq[0]);
@@ -947,13 +958,13 @@ int main (int argc, char **argv) {
                     }
                 }
             } else {
-                if (bc[i].shifted) 
+                if (bc[i].shifted)
                     d=hd(fq[0].seq.s+1,bc[i].seq.s, bc[i].seq.n);
                 else
                     d=hd(fq[0].seq.s,bc[i].seq.s, bc[i].seq.n);
 
                 // distance is added in for duals
-                if (dual) 
+                if (dual)
                     d+=hd(fq[1].seq.s,bc[i].dual, bc[i].dual_n);
 
                 //				if (debug > 1) {
@@ -962,18 +973,18 @@ int main (int argc, char **argv) {
                 //					fprintf(stderr, "\n");
                 //				}
             }
-            // simple... 
+            // simple...
             if (d < bestd) {
                 next_best=bestd;
                 bestd=d;
                 if (debug > 1) fprintf(stderr,"next_dist: %d, best_seq: %s:%d\n", next_best, bc[i].seq.s, bestd);
             }
             // if exact match
-            if (d==0) { 
+            if (d==0) {
                 if (debug) fprintf(stderr, ", found bc: %d bc:%s n:%d, bestd: %d, next_best: %d", i, bc[i].seq.s, bc[i].seq.n, bestd, next_best);
-                best=i; 
+                best=i;
                 ++bc[best].zerocnt;
-                break; 
+                break;
             } else if (d <= mismatch) {
                 // if ok match
                 if (d == bestmm) {
@@ -1019,10 +1030,9 @@ int main (int argc, char **argv) {
         int shift_index=0;
         if (bcinheader) {
             shift_index = 1;
-            if (dual) 
+            if (dual)
                 shift_index = 2;
         }
-
 		for (i=shift_index;i<f_n+shift_index;++i) {
 			FILE *f=bc[best].fout[i-shift_index];
 			if (!f) continue;
@@ -1042,12 +1052,45 @@ int main (int argc, char **argv) {
                 fputs(fq[i].id.s,f);
             }
             fputs(fq[i].seq.s,f);
+
+            readLength=(int)strlen(fq[i].seq.s);
+            int thisgc=0;
+            if (i==0);
+            else{
+            for (int j=0;j<readLength;j++){
+            Q=(int)fq[i].qual.s[j]-33;
+            bc[best].totalQuality[i]+=Q;
+            if (Q<10) {bc[best].QD[i][0][j]++,bc[best].BaseQuality[i][0]++;}
+            else if (Q>=10 && Q<20) {bc[best].QD[i][1][j]++;bc[best].BaseQuality[i][1]++;}
+            else if (Q>=20 && Q<30) {bc[best].QD[i][2][j]++;bc[best].BaseQuality[i][2]++;}
+            else if (Q>=30) {bc[best].QD[i][3][j]++;bc[best].BaseQuality[i][3]++;}
+            else ;
+            if (fq[i].seq.s[j]=='A') bc[best].BD[i][0][j]++;
+            else if (fq[i].seq.s[j]=='C') {bc[best].BD[i][1][j]++;thisgc++;bc[best].TotalGC[i]++;}
+            else if (fq[i].seq.s[j]=='G') {bc[best].BD[i][2][j]++;thisgc++;bc[best].TotalGC[i]++;}
+            else if (fq[i].seq.s[j]=='T') bc[best].BD[i][3][j]++;
+            else if (fq[i].seq.s[j]=='N') bc[best].BD[i][4][j]++;
+            else ;
+            }
+            bc[best].thisgcPercentage=((float)thisgc/readLength)*100;
+            if (0<=bc[best].thisgcPercentage && bc[best].thisgcPercentage<10) bc[best].GC[i][0]++;
+            else if (10<=bc[best].thisgcPercentage && bc[best].thisgcPercentage<10) bc[best].GC[i][1]++;
+            else if (20<=bc[best].thisgcPercentage && bc[best].thisgcPercentage<30) bc[best].GC[i][2]++;
+            else if (30<=bc[best].thisgcPercentage && bc[best].thisgcPercentage<40) bc[best].GC[i][3]++;
+            else if (40<=bc[best].thisgcPercentage && bc[best].thisgcPercentage<50) bc[best].GC[i][4]++;
+            else if (50<=bc[best].thisgcPercentage && bc[best].thisgcPercentage<60) bc[best].GC[i][5]++;
+            else if (60<=bc[best].thisgcPercentage && bc[best].thisgcPercentage<70) bc[best].GC[i][6]++;
+            else if (70<=bc[best].thisgcPercentage && bc[best].thisgcPercentage<80) bc[best].GC[i][7]++;
+            else if (80<=bc[best].thisgcPercentage && bc[best].thisgcPercentage<90) bc[best].GC[i][8]++;
+            else bc[best].GC[i][9]++;}
             fputc('\n',f);
             fputs(fq[i].com.s,f);
             fputs(fq[i].qual.s,f);
             fputc('\n',f);
+            bc[best].NumberOfReads[i]++;
 		}
-	}
+}
+
 
     bool io_ok=1;
     for (b=0;b<=bcnt;++b) {
@@ -1068,9 +1111,104 @@ int main (int argc, char **argv) {
 
     if (!io_ok)
         fprintf(stderr, "Returning error because of i/o error during file close\n");
+    FILE *BDout;
+    FILE *QDout;
+    FILE *GCout;
+    FILE *Statout;
+    char lane[4];
+    char *ptr;
+    for (i=0;i<=bcnt;++i){
+    if (i==bcnt);
+    else{
+    ptr=bc[i].id.s+(bc[i].id.n-3);
+    strcpy(lane,ptr);
+    bc[i].id.s[bc[i].id.n-3]=0;
+    }
+    for (int r=1;r<3;r++){
+    char name1[200];
+    char name2[200];
+    char name3[200];
+    char name4[200];
+    strcpy(name1,bc[i].id.s);
+    strcpy(name2,bc[i].id.s);
+    strcpy(name3,bc[i].id.s);
+    strcpy(name4,bc[i].id.s);
+    if (i==bcnt) {
+	strcat(name1,lane);
+    strcat(name2,lane);
+    strcat(name3,lane);
+    strcat(name4,lane);
+}
+    else{
+    strcat(name1,"_");strcat(name1,bc[i].seq.s);strcat(name1,lane);
+    strcat(name2,"_");strcat(name2,bc[i].seq.s);strcat(name2,lane);
+    strcat(name3,"_");strcat(name3,bc[i].seq.s);strcat(name3,lane);
+    strcat(name4,"_");strcat(name4,bc[i].seq.s);strcat(name4,lane);
+    }
+    if (r==1) {
+    strcat(name1,"-LEFT-bd");
+    strcat(name2,"-LEFT-qd");
+    strcat(name3,"-LEFT-gc");
+    strcat(name4,"-LEFT-stats");
+    BDout=fopen(name1,"w");
+	QDout=fopen(name2,"w");
+	GCout=fopen(name3,"w");
+	Statout=fopen(name4,"w");
+	if (!BDout || !QDout || !GCout || !Statout){
+	fprintf(stderr,"Error in opening output file\n");
+    return (1);
+	}
+	bc[i].NumberOfBases[r]=bc[i].NumberOfReads[r]*readLength;
+    }
+    else if (r==2){
+    strcat(name1,"-RIGHT-bd");
+    strcat(name2,"-RIGHT-qd");
+    strcat(name3,"-RIGHT-gc");
+    strcat(name4,"-RIGHT-stats");
+    BDout=fopen(name1,"w");
+	QDout=fopen(name2,"w");
+	GCout=fopen(name3,"w");
+	Statout=fopen(name4,"w");
+	if (!BDout || !QDout || !GCout || !Statout){
+	fprintf(stderr,"Error in opening output file\n");
+	return (1);
+	}
+	bc[i].NumberOfBases[r]=bc[i].NumberOfReads[r]*readLength;
+    }
+    fprintf(Statout,"%s %13s %f\n","Average quality",":",(float)bc[i].totalQuality[r]/bc[i].NumberOfBases[r]);
+    fprintf(Statout,"%s %13s %li\n","Number of reads",":",bc[i].NumberOfReads[r]);
+    fprintf(Statout,"%s %18s %f\n","Percent GC",":",((float)bc[i].TotalGC[r]/bc[i].NumberOfBases[r])*100);
+    fprintf(Statout,"%s %11s %f\n","% bases qual < 10",":",((float)bc[i].BaseQuality[r][0]/bc[i].NumberOfBases[r])*100);
+    fprintf(Statout,"%s %1s %f\n","% bases qual >= 10 and < 20",":",((float)bc[i].BaseQuality[r][1]/bc[i].NumberOfBases[r])*100);
+    fprintf(Statout,"%s %2s %f\n","% bases qual >= 20 and <30",":",((float)bc[i].BaseQuality[r][2]/bc[i].NumberOfBases[r])*100);
+    fprintf(Statout,"%s %10s %f\n","% bases qual >= 30",":",((float)bc[i].BaseQuality[r][3]/bc[i].NumberOfBases[r])*100);
+    fprintf(Statout,"%s %13s %li\n","Number of bases",":",bc[i].NumberOfBases[r]);
+    fprintf(Statout,"%s %17s %f\n","Read length",":",(float)readLength);
+    fprintf(GCout,"\"%s\", %f\n","0-10",(float)bc[i].GC[r][0]);
+    fprintf(GCout,"\"%s\", %f\n","10-20",(float)bc[i].GC[r][1]);
+    fprintf(GCout,"\"%s\", %f\n","20-30",(float)bc[i].GC[r][2]);
+    fprintf(GCout,"\"%s\", %f\n","30-40",(float)bc[i].GC[r][3]);
+    fprintf(GCout,"\"%s\", %f\n","40-50",(float)bc[i].GC[r][4]);
+    fprintf(GCout,"\"%s\", %f\n","50-60",(float)bc[i].GC[r][5]);
+    fprintf(GCout,"\"%s\", %f\n","60-70",(float)bc[i].GC[r][6]);
+    fprintf(GCout,"\"%s\", %f\n","70-80",(float)bc[i].GC[r][7]);
+    fprintf(GCout,"\"%s\", %f\n","80-90",(float)bc[i].GC[r][8]);
+    fprintf(GCout,"\"%s\", %f\n","90-100",(float)bc[i].GC[r][9]);
+    fprintf(BDout,"Position\tA\tC\tG\tT\tN\n");
+    fprintf(QDout,"Position\tQ<10\t10<=Q<20\t20<=Q<30\tQ>=30\n");
+    for (int m=0;m<readLength;m++){
+    fprintf(BDout,"%d\t%f\t%f\t%f\t%f\t%f\n",m+1,(float)bc[i].BD[r][0][m],(float)bc[i].BD[r][1][m],(float)bc[i].BD[r][2][m],(float)bc[i].BD[r][3][m],(float)bc[i].BD[r][4][m]);
+    fprintf(QDout,"%d\t%f\t%f\t%f\t%f\n",m+1,(float)bc[i].QD[r][0][m],(float)bc[i].QD[r][1][m],(float)bc[i].QD[r][2][m],(float)bc[i].QD[r][3][m]);
+    }
+    }
+    fclose(BDout);
+    fclose(QDout);
+    fclose(GCout);
+    fclose(Statout);
+    }
 
 	int j;
-	printf("Id\tCount\tzerocnt\tonecnt\tFile(s)\n");
+	printf("Id\tCount\t0Mismatch\t1Mismatch\tFile(s)\n");
 	uint64_t tot=0;
 	for (i=0;i<=bcnt;++i) {
 		printf("%s\t%lu\t%lu\t%lu", bc[i].id.s, bc[i].cnt,bc[i].zerocnt,bc[i].onecnt);
@@ -1144,7 +1282,7 @@ void usage(FILE *f) {
 "\n"
 "If -g is used, then it's parameter is an index lane, and frequently occuring sequences are used.\n"
 "\n"
-"If -l is used then all barcodes in the file are tried, and the *group* with the *most* matches is chosen.\n" 
+"If -l is used then all barcodes in the file are tried, and the *group* with the *most* matches is chosen.\n"
 "\n"
 "Grouped barcodes file (-l or -L) looks like this:\n"
 "\n"
