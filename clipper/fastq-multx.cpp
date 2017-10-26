@@ -137,7 +137,7 @@ int main (int argc, char **argv) {
 	int i;
 	bool omode = false;
 	char *bfil = NULL;
-	while (	(c = getopt (argc, argv, "-DzxnHhbeosv:m:B:g:L:l:G:q:d:t:")) != -1) {
+	while (	(c = getopt (argc, argv, "-DzxnHhbeosv:m:B:g:L:l:G:q:d:t")) != -1) {
 		switch (c) t:{
 		case '\1':
                        	if (omode) {
@@ -181,6 +181,7 @@ int main (int argc, char **argv) {
 		case 'm': mismatch = atoi(optarg); break;
 		case 'd': distance = atoi(optarg); break;
 		case 'q': quality = atoi(optarg); break;
+//		case 'p': path='x';break;
 		case 'D': ++debug; break;
 		case '?':
 		     if (strchr("vmBglG", optopt))
@@ -298,7 +299,6 @@ int main (int argc, char **argv) {
 		for (i=0;i<(usefile1?1:f_n);++i) {
             char *s = NULL; size_t na = 0; int nr = 0, ns = 0;
             char *q = NULL; size_t nq = 0;
-			double tots=0, totsq=0;
 		    char *s2 = NULL; int ns2=0;
             char *ignore_s=NULL;
 
@@ -809,8 +809,13 @@ int main (int argc, char **argv) {
 	}
 
 	// one beyond barcode count is unmatched
+	char l[50];
+	char *pt;
+	pt=bc[0].id.s+(bc[0].id.n-3);
+	strcpy(l,"unmatched");
+	strcat(l,pt);
 	bc[bcnt].id.s=(char*) malloc(200);
-	bc[bcnt].id.s=(char *)"unmatched";
+	bc[bcnt].id.s=(char *)l;
 
 	// TODO: output barcode read ...but only for unmatched?
 	int b;
@@ -1138,12 +1143,7 @@ int main (int argc, char **argv) {
     strcpy(name2,bc[i].id.s);
     strcpy(name3,bc[i].id.s);
     strcpy(name4,bc[i].id.s);
-    if (i==bcnt) {
-	strcat(name1,lane);
-    strcat(name2,lane);
-    strcat(name3,lane);
-    strcat(name4,lane);
-}
+    if (i==bcnt);
     else{
     strcat(name1,"_");strcat(name1,bc[i].seq.s);strcat(name1,lane);
     strcat(name2,"_");strcat(name2,bc[i].seq.s);strcat(name2,lane);
