@@ -1145,10 +1145,10 @@ int main (int argc, char **argv) {
     strcpy(name4,bc[i].id.s);
     if (i==bcnt);
     else{
-    strcat(name1,"_");strcat(name1,bc[i].seq.s);strcat(name1,lane);
-    strcat(name2,"_");strcat(name2,bc[i].seq.s);strcat(name2,lane);
-    strcat(name3,"_");strcat(name3,bc[i].seq.s);strcat(name3,lane);
-    strcat(name4,"_");strcat(name4,bc[i].seq.s);strcat(name4,lane);
+    strcat(name1,lane);
+    strcat(name2,lane);
+    strcat(name3,lane);
+    strcat(name4,lane);
     }
     if (r==1) {
     strcat(name1,"-LEFT-bd");
